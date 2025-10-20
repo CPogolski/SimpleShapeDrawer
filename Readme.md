@@ -1,4 +1,4 @@
-# 🟩 ShapeViewer – Minimalistisches Zeichen-Tool für den Unterricht
+# 🟩 Simple Shape Drawer – Minimalistisches Zeichen-Tool für den Unterricht
 
 ShapeViewer ist eine einfache, ablenkungsfreie Web-App zum Zeichnen von Vierecken, Dreiecken und Kreisen.
 Sie richtet sich insbesondere an Grundschullehrkräfte, die im digitalen Unterricht geometrische Formen zeigen oder gemeinsam mit Schüler:innen bearbeiten möchten.
@@ -28,6 +28,8 @@ ohne störende Menüs, Pop-ups oder Ablenkungen.
 
 ## 📦 Installation 
 Lade dir einfach dieses Repository herunter und rufe die index.html mit dem browser deines Vertrauens auf.
+
+oder alternativ, falls du Internetzugang hast, rufe diese Seite auf: https://cpogolski.github.io/SimpleShapeDrawer/
 
 ## 💡 Technische Hinweise
 

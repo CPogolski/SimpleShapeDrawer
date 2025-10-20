@@ -22,7 +22,7 @@ window.addEventListener('load', resizeCanvas);
 
 // State
 let shapes = [];
-let currentTool = 'rectangle';
+let currentTool = 'square'; // Default tool
 let currentColor = null;
 let isDrawing = false;
 let startX, startY;
@@ -61,6 +61,12 @@ class Shape {
         if (this.type === 'rectangle') {
             if (this.color) ctx.fillRect(this.x, this.y, this.width, this.height);
             ctx.strokeRect(this.x, this.y, this.width, this.height);
+        } else if (this.type === 'square') {
+            const size = Math.max(Math.abs(this.width), Math.abs(this.height));
+            const drawWidth = this.width < 0 ? -size : size;
+            const drawHeight = this.height < 0 ? -size : size;
+            if (this.color) ctx.fillRect(this.x, this.y, drawWidth, drawHeight);
+            ctx.strokeRect(this.x, this.y, drawWidth, drawHeight);
         } else if (this.type === 'circle') {
             const radius = Math.abs(this.width) / 2;
             const centerX = this.x + this.width / 2;
@@ -183,6 +189,14 @@ document.getElementById('triangleBtn').addEventListener('click', () => {
     currentColor = null;
 });
 
+document.getElementById('squareBtn').addEventListener('click', () => {
+    setTool('square');
+    setActiveButton('squareBtn');
+    // Deselect all colors when switching to shape tool
+    document.querySelectorAll('.color-btn').forEach(b => b.classList.remove('active'));
+    currentColor = null;
+});
+
 document.getElementById('selectBtn').addEventListener('click', () => {
     setTool('select');
     setActiveButton('selectBtn');
@@ -200,6 +214,7 @@ function setTool(tool) {
     } else {
         canvas.classList.remove('select-mode');
         const toolNames = {
+            'square': 'Quadrat',
             'rectangle': 'Rechteck',
             'circle': 'Kreis',
             'triangle': 'Dreieck'
@@ -496,6 +511,7 @@ canvas.addEventListener('mouseup', (e) => {
             const newShape = new Shape(currentTool, startX, startY, width, height, currentColor);
             shapes.push(newShape);
             const toolNames = {
+                'square': 'Quadrat',
                 'rectangle': 'Rechteck',
                 'circle': 'Kreis',
                 'triangle': 'Dreieck'

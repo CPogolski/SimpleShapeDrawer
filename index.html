@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Formen Zeichenwerkzeug</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <div class="main-content">
+            <div class="left-section">
+                <div class="toolbar">
+                    <!-- Shape Tools -->
+                    <div class="tool-section">
+                        <h3>Formen</h3>
+                        <div class="button-group">
+                            <button id="rectBtn" class="tool-btn active" title="Rechteck">
+                                <svg width="24" height="24" viewBox="0 0 24 24">
+                                    <rect x="4" y="6" width="16" height="12" fill="none" stroke="currentColor" stroke-width="2"/>
+                                </svg>
+                                Rechteck
+                            </button>
+                            <button id="circleBtn" class="tool-btn" title="Kreis">
+                                <svg width="24" height="24" viewBox="0 0 24 24">
+                                    <circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" stroke-width="2"/>
+                                </svg>
+                                Kreis
+                            </button>
+                            <button id="triangleBtn" class="tool-btn" title="Dreieck">
+                                <svg width="24" height="24" viewBox="0 0 24 24">
+                                    <polygon points="12,4 20,20 4,20" fill="none" stroke="currentColor" stroke-width="2"/>
+                                </svg>
+                                Dreieck
+                            </button>
+                            <button id="selectBtn" class="tool-btn" title="Auswählen/Verschieben">
+                                <svg width="24" height="24" viewBox="0 0 24 24">
+                                    <path d="M3 3 L3 21 L11 15 L15 21 L17 20 L13 14 L21 14 Z" fill="currentColor"/>
+                                </svg>
+                                Auswählen
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Color Tools -->
+                    <div class="tool-section">
+                        <h3>Farben</h3>
+                        <div class="button-group">
+                            <button class="color-btn" data-color="#ff0000" style="background-color: #ff0000;" title="Rot"></button>
+                            <button class="color-btn" data-color="#000000" style="background-color: #000000;" title="Türkis"></button>
+                            <button class="color-btn" data-color="#45B7DD" style="background-color: #45B7DD;" title="Blau"></button>
+                            <button class="color-btn" data-color="#ffbf00" style="background-color: #ffbf00;" title="Orange"></button>
+                            <button class="color-btn" data-color="#03c200" style="background-color: #03c200;" title="Grün"></button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="canvas-container">
+                    <canvas id="canvas"></canvas>
+                </div>
+
+                <div class="info">
+                    <p id="infoText">Wählen Sie ein Formwerkzeug und klicken-ziehen Sie auf der Leinwand zum Zeichnen. Verwenden Sie das Auswahl-Werkzeug zum Verschieben, Skalieren oder Löschen.</p>
+                </div>
+            </div>
+
+            <!-- Right Sidebar with Actions -->
+            <div class="right-sidebar" id="rightSidebar">
+                <button id="toggleSidebar" class="toggle-btn" title="Aktionen-Panel umschalten">
+                    <svg width="20" height="20" viewBox="0 0 24 24">
+                        <path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z" fill="currentColor"/>
+                    </svg>
+                </button>
+                <div class="sidebar-content">
+                    <div class="tool-section">
+                        <h3>Aktionen</h3>
+                        <div class="button-group vertical">
+                            <button id="deleteBtn" class="action-btn" title="Ausgewähltes löschen">
+                                <svg width="20" height="20" viewBox="0 0 24 24">
+                                    <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z" fill="currentColor"/>
+                                </svg>
+                                Löschen
+                            </button>
+                            <button id="clearShapesBtn" class="action-btn" title="Alle Formen löschen">
+                                <svg width="20" height="20" viewBox="0 0 24 24">
+                                    <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" fill="currentColor"/>
+                                </svg>
+                                Formen löschen
+                            </button>
+                            <button id="clearFillBtn" class="action-btn" title="Alle Füllfarben löschen">
+                                <svg width="20" height="20" viewBox="0 0 24 24">
+                                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z" fill="currentColor"/>
+                                </svg>
+                                Füllung löschen
+                            </button>
+                            <button id="exportBtn" class="action-btn" title="Formen exportieren">
+                                <svg width="20" height="20" viewBox="0 0 24 24">
+                                    <path d="M19 12v7H5v-7H3v7c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2v-7h-2zm-6 .67l2.59-2.58L17 11.5l-5 5-5-5 1.41-1.41L11 12.67V3h2z" fill="currentColor"/>
+                                </svg>
+                                Exportieren
+                            </button>
+                            <button id="importBtn" class="action-btn" title="Formen importieren">
+                                <svg width="20" height="20" viewBox="0 0 24 24">
+                                    <path d="M19 12v7H5v-7H3v7c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2v-7h-2zm-6-.67l-2.59 2.58L9 12.5l5-5 5 5-1.41 1.41L13 11.33V21h-2z" fill="currentColor"/>
+                                </svg>
+                                Importieren
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <input type="file" id="fileInput" accept=".json" style="display: none;">
+
+    <script src="app.js"></script>
+</body>
+</html>

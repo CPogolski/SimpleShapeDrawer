@@ -302,6 +302,18 @@ document.getElementById('fileInput').addEventListener('change', (e) => {
     e.target.value = '';
 });
 
+document.getElementById('hideGridBtn').addEventListener('click', () => {
+    const currentBackground = canvas.style.background;
+    if (currentBackground == '') {
+        canvas.style.background =
+            `linear-gradient(90deg, #f5f5f5 1px, transparent 1px),
+             linear-gradient(180deg, #f5f5f5 1px, transparent 1px)`;
+    } else {
+        canvas.style.background = '';
+    }
+    redraw();  
+})
+
 // Canvas mouse events
 canvas.addEventListener('mousedown', (e) => {
     const rect = canvas.getBoundingClientRect();

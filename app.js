@@ -545,6 +545,20 @@ canvas.addEventListener('mouseleave', () => {
     }
 });
 
+document.addEventListener('keyup', (e) => {
+    if (e.key === 'Delete' || e.key === 'Backspace') {
+        if (selectedShape) {
+            shapes = shapes.filter(s => s.id !== selectedShape.id);
+            selectedShape = null;
+            redraw();
+            updateInfo('Form gelöscht.');
+        }
+    }
+    else if (e.key === '.') {
+        infoText.style.visibility = infoText.style.visibility === 'hidden' ? 'visible' : 'hidden';
+    }
+});
+
 function getCursorForHandle(handle) {
     const cursors = {
         'nw': 'nw-resize',

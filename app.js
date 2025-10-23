@@ -418,8 +418,12 @@ canvas.addEventListener('mousemove', (e) => {
         selectedShape.y = newY;
         redraw();
     } else if (isResizing && selectedShape && resizeHandle) {
-        const dx = x - startX;
-        const dy = y - startY;
+        // Snap the current mouse position to grid first
+        const snappedX = snapToGrid(x);
+        const snappedY = snapToGrid(y);
+        // Calculate delta based on snapped positions
+        const dx = snappedX - snapToGrid(startX);
+        const dy = snappedY - snapToGrid(startY);
 
         const originalX = selectedShape.x;
         const originalY = selectedShape.y;
@@ -428,38 +432,38 @@ canvas.addEventListener('mousemove', (e) => {
 
         switch (resizeHandle) {
             case 'nw':
-                selectedShape.x = snapToGrid(selectedShape.x + dx);
-                selectedShape.y = snapToGrid(selectedShape.y + dy);
-                selectedShape.width = originalX + originalWidth - selectedShape.x;
-                selectedShape.height = originalY + originalHeight - selectedShape.y;
+                selectedShape.x = originalX + dx;
+                selectedShape.y = originalY + dy;
+                selectedShape.width = originalWidth - dx;
+                selectedShape.height = originalHeight - dy;
                 break;
             case 'n':
-                selectedShape.y = snapToGrid(selectedShape.y + dy);
-                selectedShape.height = originalY + originalHeight - selectedShape.y;
+                selectedShape.y = originalY + dy;
+                selectedShape.height = originalHeight - dy;
                 break;
             case 'ne':
-                selectedShape.y = snapToGrid(selectedShape.y + dy);
-                selectedShape.width = snapToGrid(originalWidth + dx);
-                selectedShape.height = originalY + originalHeight - selectedShape.y;
+                selectedShape.y = originalY + dy;
+                selectedShape.width = originalWidth + dx;
+                selectedShape.height = originalHeight - dy;
                 break;
             case 'w':
-                selectedShape.x = snapToGrid(selectedShape.x + dx);
-                selectedShape.width = originalX + originalWidth - selectedShape.x;
+                selectedShape.x = originalX + dx;
+                selectedShape.width = originalWidth - dx;
                 break;
             case 'e':
-                selectedShape.width = snapToGrid(originalWidth + dx);
+                selectedShape.width = originalWidth + dx;
                 break;
             case 'sw':
-                selectedShape.x = snapToGrid(selectedShape.x + dx);
-                selectedShape.width = originalX + originalWidth - selectedShape.x;
-                selectedShape.height = snapToGrid(originalHeight + dy);
+                selectedShape.x = originalX + dx;
+                selectedShape.width = originalWidth - dx;
+                selectedShape.height = originalHeight + dy;
                 break;
             case 's':
-                selectedShape.height = snapToGrid(originalHeight + dy);
+                selectedShape.height = originalHeight + dy;
                 break;
             case 'se':
-                selectedShape.width = snapToGrid(originalWidth + dx);
-                selectedShape.height = snapToGrid(originalHeight + dy);
+                selectedShape.width = originalWidth + dx;
+                selectedShape.height = originalHeight + dy;
                 break;
         }
 

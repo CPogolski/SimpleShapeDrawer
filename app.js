@@ -317,6 +317,12 @@ document.getElementById('fileInput').addEventListener('change', (e) => {
     e.target.value = '';
 });
 
+document.getElementById('fitToCanvasBtn').addEventListener('click', () => {
+    fitShapesToCanvas();
+    redraw();
+    updateInfo('Formen an Ansicht angepasst.');
+});
+
 document.getElementById('hideGridBtn').addEventListener('click', () => {
     const currentBackground = canvas.style.background;
     if (currentBackground == '') {
@@ -583,6 +589,65 @@ function redraw() {
 
 function updateInfo(message) {
     infoText.textContent = message;
+}
+
+function getShapesBoundingBox() {
+    if (!shapes.length) {
+        return null;
+    }
+
+    let minX = Infinity;
+    let minY = Infinity;
+    let maxX = -Infinity;
+    let maxY = -Infinity;
+
+    shapes.forEach(shape => {
+        const left = Math.min(shape.x, shape.x + shape.width);
+        const right = Math.max(shape.x, shape.x + shape.width);
+        const top = Math.min(shape.y, shape.y + shape.height);
+        const bottom = Math.max(shape.y, shape.y + shape.height);
+
+        minX = Math.min(minX, left);
+        minY = Math.min(minY, top);
+        maxX = Math.max(maxX, right);
+        maxY = Math.max(maxY, bottom);
+    });
+
+    if (!isFinite(minX) || !isFinite(minY) || !isFinite(maxX) || !isFinite(maxY)) {
+        return null;
+    }
+
+    return { minX, minY, maxX, maxY };
+}
+
+function fitShapesToCanvas() {
+    const bounds = getShapesBoundingBox();
+    if (!bounds) {
+        return;
+    }
+
+    const width = bounds.maxX - bounds.minX;
+    const height = bounds.maxY - bounds.minY;
+    const padding = 5;
+    const availableWidth = Math.max(canvas.width - padding * 2, 1);
+    const availableHeight = Math.max(canvas.height - padding * 2, 1);
+
+    const scaleX = width === 0 ? Infinity : availableWidth / width;
+    const scaleY = height === 0 ? Infinity : availableHeight / height;
+    const scale = Math.min(scaleX, scaleY);
+    const finalScale = !isFinite(scale) || scale <= 0 ? 1 : scale;
+
+    const contentWidth = width * finalScale;
+    const contentHeight = height * finalScale;
+    const offsetX = (canvas.width - contentWidth) / 2;
+    const offsetY = (canvas.height - contentHeight) / 2;
+
+    shapes.forEach(shape => {
+        shape.x = offsetX + (shape.x - bounds.minX) * finalScale;
+        shape.y = offsetY + (shape.y - bounds.minY) * finalScale;
+        shape.width *= finalScale;
+        shape.height *= finalScale;
+    });
 }
 
 // Toggle sidebar

@@ -11,6 +11,10 @@ function resizeCanvas() {
     // Set canvas size to match container
     canvas.width = rect.width;
     canvas.height = rect.height;
+
+    if (shapes.length && !userAdjustedView) {
+        fitShapesToCanvas();
+    }
     
     // Redraw everything after resize
     redraw();
@@ -32,9 +36,21 @@ let isResizing = false;
 let resizeHandle = null;
 let dragOffsetX = 0;
 let dragOffsetY = 0;
+let viewScale = 1;
+let viewOffsetX = 0;
+let viewOffsetY = 0;
+let isPanning = false;
+let panStartX = 0;
+let panStartY = 0;
+let viewStartOffsetX = 0;
+let viewStartOffsetY = 0;
+let isSpacePressed = false;
+let userAdjustedView = false;
 
 // Grid settings
 const GRID_SIZE = 20;
+const MIN_ZOOM = 0.2;
+const MAX_ZOOM = 5;
 
 // Snap to grid function
 function snapToGrid(value) {
@@ -87,21 +103,26 @@ class Shape {
     }
 
     drawSelection() {
+        ctx.save();
         ctx.strokeStyle = '#667eea';
-        ctx.lineWidth = 2;
-        ctx.setLineDash([5, 5]);
+        ctx.lineWidth = 2 / viewScale;
+        ctx.setLineDash([5 / viewScale, 5 / viewScale]);
         ctx.strokeRect(this.x, this.y, this.width, this.height);
         ctx.setLineDash([]);
 
         // Draw resize handles
         const handles = this.getResizeHandles();
+        const handleSize = 8 / viewScale;
+        const halfSize = handleSize / 2;
         handles.forEach(handle => {
             ctx.fillStyle = '#667eea';
-            ctx.fillRect(handle.x - 4, handle.y - 4, 8, 8);
+            ctx.fillRect(handle.x - halfSize, handle.y - halfSize, handleSize, handleSize);
             ctx.strokeStyle = 'white';
-            ctx.lineWidth = 1;
-            ctx.strokeRect(handle.x - 4, handle.y - 4, 8, 8);
+            ctx.lineWidth = 1 / viewScale;
+            ctx.strokeRect(handle.x - halfSize, handle.y - halfSize, handleSize, handleSize);
         });
+
+        ctx.restore();
     }
 
     getResizeHandles() {
@@ -153,10 +174,10 @@ class Shape {
         }
     }
 
-    getResizeHandleAt(x, y) {
+    getResizeHandleAt(x, y, tolerance = 6) {
         const handles = this.getResizeHandles();
         for (let handle of handles) {
-            if (Math.abs(x - handle.x) <= 6 && Math.abs(y - handle.y) <= 6) {
+            if (Math.abs(x - handle.x) <= tolerance && Math.abs(y - handle.y) <= tolerance) {
                 return handle.position;
             }
         }
@@ -265,6 +286,7 @@ document.getElementById('clearShapesBtn').addEventListener('click', () => {
     if (confirm('Sind Sie sicher, dass Sie alle Formen löschen möchten?')) {
         shapes = [];
         selectedShape = null;
+        resetView();
         redraw();
         updateInfo('Alle Formen gelöscht.');
     }
@@ -305,6 +327,7 @@ document.getElementById('fileInput').addEventListener('change', (e) => {
                     return shape;
                 });
                 selectedShape = null;
+                fitShapesToCanvas();
                 redraw();
                 updateInfo(`${shapes.length} Formen importiert.`);
             } catch (error) {
@@ -336,15 +359,53 @@ document.getElementById('hideGridBtn').addEventListener('click', () => {
 })
 
 // Canvas mouse events
+canvas.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    const rect = canvas.getBoundingClientRect();
+    const canvasX = e.clientX - rect.left;
+    const canvasY = e.clientY - rect.top;
+    const { x: worldX, y: worldY } = screenToWorld(canvasX, canvasY);
+    const zoomAmount = -e.deltaY * 0.001;
+    const scaleFactor = Math.exp(zoomAmount);
+    const newScale = clamp(viewScale * scaleFactor, MIN_ZOOM, MAX_ZOOM);
+    if (newScale === viewScale) {
+        return;
+    }
+    userAdjustedView = true;
+    viewScale = newScale;
+    viewOffsetX = canvasX - worldX * viewScale;
+    viewOffsetY = canvasY - worldY * viewScale;
+    redraw();
+}, { passive: false });
+
 canvas.addEventListener('mousedown', (e) => {
     const rect = canvas.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
+    const canvasX = e.clientX - rect.left;
+    const canvasY = e.clientY - rect.top;
+
+    if (isSpacePressed || e.button === 1) {
+        isPanning = true;
+        panStartX = canvasX;
+        panStartY = canvasY;
+        viewStartOffsetX = viewOffsetX;
+        viewStartOffsetY = viewOffsetY;
+        canvas.style.cursor = 'grabbing';
+        userAdjustedView = true;
+        e.preventDefault();
+        return;
+    }
+
+    if (e.button !== 0) {
+        return;
+    }
+
+    const { x, y } = screenToWorld(canvasX, canvasY);
 
     if (currentTool === 'select') {
         // Check if clicking on a resize handle
         if (selectedShape) {
-            resizeHandle = selectedShape.getResizeHandleAt(x, y);
+            const tolerance = 6 / viewScale;
+            resizeHandle = selectedShape.getResizeHandleAt(x, y, tolerance);
             if (resizeHandle) {
                 isResizing = true;
                 startX = x;
@@ -398,18 +459,30 @@ canvas.addEventListener('mousedown', (e) => {
 
 canvas.addEventListener('mousemove', (e) => {
     const rect = canvas.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
+    const canvasX = e.clientX - rect.left;
+    const canvasY = e.clientY - rect.top;
+
+    if (isPanning) {
+        viewOffsetX = viewStartOffsetX + (canvasX - panStartX);
+        viewOffsetY = viewStartOffsetY + (canvasY - panStartY);
+        redraw();
+        return;
+    }
+
+    const { x, y } = screenToWorld(canvasX, canvasY);
 
     if (isDrawing) {
-        redraw();
-        // Snap current position to grid
+        // Snap current position to grid in world space
         const snappedX = snapToGrid(x);
         const snappedY = snapToGrid(y);
         const width = snappedX - startX;
         const height = snappedY - startY;
         const tempShape = new Shape(currentTool, startX, startY, width, height);
+        redraw();
+        ctx.save();
+        ctx.setTransform(viewScale, 0, 0, viewScale, viewOffsetX, viewOffsetY);
         tempShape.draw();
+        ctx.restore();
     } else if (isDragging && selectedShape) {
         // Snap position to grid while dragging
         const newX = snapToGrid(x - dragOffsetX);
@@ -418,12 +491,8 @@ canvas.addEventListener('mousemove', (e) => {
         selectedShape.y = newY;
         redraw();
     } else if (isResizing && selectedShape && resizeHandle) {
-        // Snap the current mouse position to grid first
-        const snappedX = snapToGrid(x);
-        const snappedY = snapToGrid(y);
-        // Calculate delta based on snapped positions
-        const dx = snappedX - snapToGrid(startX);
-        const dy = snappedY - snapToGrid(startY);
+        const dx = x - startX;
+        const dy = y - startY;
 
         const originalX = selectedShape.x;
         const originalY = selectedShape.y;
@@ -432,38 +501,38 @@ canvas.addEventListener('mousemove', (e) => {
 
         switch (resizeHandle) {
             case 'nw':
-                selectedShape.x = originalX + dx;
-                selectedShape.y = originalY + dy;
-                selectedShape.width = originalWidth - dx;
-                selectedShape.height = originalHeight - dy;
+                selectedShape.x = snapToGrid(selectedShape.x + dx);
+                selectedShape.y = snapToGrid(selectedShape.y + dy);
+                selectedShape.width = originalX + originalWidth - selectedShape.x;
+                selectedShape.height = originalY + originalHeight - selectedShape.y;
                 break;
             case 'n':
-                selectedShape.y = originalY + dy;
-                selectedShape.height = originalHeight - dy;
+                selectedShape.y = snapToGrid(selectedShape.y + dy);
+                selectedShape.height = originalY + originalHeight - selectedShape.y;
                 break;
             case 'ne':
-                selectedShape.y = originalY + dy;
-                selectedShape.width = originalWidth + dx;
-                selectedShape.height = originalHeight - dy;
+                selectedShape.y = snapToGrid(selectedShape.y + dy);
+                selectedShape.width = snapToGrid(originalWidth + dx);
+                selectedShape.height = originalY + originalHeight - selectedShape.y;
                 break;
             case 'w':
-                selectedShape.x = originalX + dx;
-                selectedShape.width = originalWidth - dx;
+                selectedShape.x = snapToGrid(selectedShape.x + dx);
+                selectedShape.width = originalX + originalWidth - selectedShape.x;
                 break;
             case 'e':
-                selectedShape.width = originalWidth + dx;
+                selectedShape.width = snapToGrid(originalWidth + dx);
                 break;
             case 'sw':
-                selectedShape.x = originalX + dx;
-                selectedShape.width = originalWidth - dx;
-                selectedShape.height = originalHeight + dy;
+                selectedShape.x = snapToGrid(selectedShape.x + dx);
+                selectedShape.width = originalX + originalWidth - selectedShape.x;
+                selectedShape.height = snapToGrid(originalHeight + dy);
                 break;
             case 's':
-                selectedShape.height = originalHeight + dy;
+                selectedShape.height = snapToGrid(originalHeight + dy);
                 break;
             case 'se':
-                selectedShape.width = originalWidth + dx;
-                selectedShape.height = originalHeight + dy;
+                selectedShape.width = snapToGrid(originalWidth + dx);
+                selectedShape.height = snapToGrid(originalHeight + dy);
                 break;
         }
 
@@ -480,10 +549,11 @@ canvas.addEventListener('mousemove', (e) => {
         startX = x;
         startY = y;
         redraw();
-    } else if (currentTool === 'select' && selectedShape && !currentColor) {
+    } else if (currentTool === 'select' && selectedShape && !currentColor && !isSpacePressed) {
         // Only show resize cursors when no color is selected
         // Update cursor based on hover position
-        const handle = selectedShape.getResizeHandleAt(x, y);
+        const tolerance = 6 / viewScale;
+        const handle = selectedShape.getResizeHandleAt(x, y, tolerance);
         if (handle) {
             canvas.style.cursor = getCursorForHandle(handle);
         } else if (selectedShape.containsPoint(x, y)) {
@@ -491,7 +561,7 @@ canvas.addEventListener('mousemove', (e) => {
         } else {
             canvas.style.cursor = 'default';
         }
-    } else if (currentTool === 'select' && currentColor) {
+    } else if (currentTool === 'select' && currentColor && !isSpacePressed) {
         // Show pointer cursor when color is selected and hovering over shapes
         let isOverShape = false;
         for (let i = shapes.length - 1; i >= 0; i--) {
@@ -505,10 +575,22 @@ canvas.addEventListener('mousemove', (e) => {
 });
 
 canvas.addEventListener('mouseup', (e) => {
+    const rect = canvas.getBoundingClientRect();
+    const canvasX = e.clientX - rect.left;
+    const canvasY = e.clientY - rect.top;
+
+    if (isPanning) {
+        isPanning = false;
+        if (isSpacePressed) {
+            canvas.style.cursor = 'grab';
+        } else {
+            canvas.style.cursor = 'default';
+        }
+        return;
+    }
+
     if (isDrawing) {
-        const rect = canvas.getBoundingClientRect();
-        const x = e.clientX - rect.left;
-        const y = e.clientY - rect.top;
+        const { x, y } = screenToWorld(canvasX, canvasY);
         
         // Snap end position to grid
         const snappedX = snapToGrid(x);
@@ -553,10 +635,38 @@ canvas.addEventListener('mouseleave', () => {
         isResizing = false;
         resizeHandle = null;
     }
+    if (isPanning) {
+        isPanning = false;
+        if (isSpacePressed) {
+            canvas.style.cursor = 'grab';
+        } else {
+            canvas.style.cursor = 'default';
+        }
+    }
+});
+
+document.addEventListener('keydown', (e) => {
+    if ((e.key === ' ' || e.code === 'Space') && !isInteractiveTarget(e.target)) {
+        if (!isSpacePressed) {
+            isSpacePressed = true;
+            if (!isPanning) {
+                canvas.style.cursor = 'grab';
+            }
+        }
+        e.preventDefault();
+    }
 });
 
 document.addEventListener('keyup', (e) => {
-    if (e.key === 'Delete' || e.key === 'Backspace') {
+    if ((e.key === ' ' || e.code === 'Space') && !isInteractiveTarget(e.target)) {
+        isSpacePressed = false;
+        if (!isPanning) {
+            canvas.style.cursor = 'default';
+        }
+        return;
+    }
+
+    if ((e.key === 'Delete' || e.key === 'Backspace') && !isInteractiveTarget(e.target)) {
         if (selectedShape) {
             shapes = shapes.filter(s => s.id !== selectedShape.id);
             selectedShape = null;
@@ -564,7 +674,7 @@ document.addEventListener('keyup', (e) => {
             updateInfo('Form gelöscht.');
         }
     }
-    else if (e.key === '.') {
+    else if (e.key === '.' && !isInteractiveTarget(e.target)) {
         infoText.style.visibility = infoText.style.visibility === 'hidden' ? 'visible' : 'hidden';
     }
 });
@@ -584,15 +694,58 @@ function getCursorForHandle(handle) {
 }
 
 function redraw() {
+    ctx.save();
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.restore();
+
+    ctx.save();
+    ctx.setTransform(viewScale, 0, 0, viewScale, viewOffsetX, viewOffsetY);
     shapes.forEach(shape => shape.draw());
     if (selectedShape) {
         selectedShape.drawSelection();
     }
+    ctx.restore();
 }
 
 function updateInfo(message) {
     infoText.textContent = message;
+}
+
+function screenToWorld(x, y) {
+    return {
+        x: (x - viewOffsetX) / viewScale,
+        y: (y - viewOffsetY) / viewScale
+    };
+}
+
+function clamp(value, min, max) {
+    return Math.min(Math.max(value, min), max);
+}
+
+function resetView() {
+    viewScale = 1;
+    viewOffsetX = 0;
+    viewOffsetY = 0;
+    userAdjustedView = false;
+}
+
+function isInteractiveTarget(element) {
+    if (!element) {
+        return false;
+    }
+
+    if (element instanceof HTMLElement && element.isContentEditable) {
+        return true;
+    }
+
+    const tagName = element.tagName;
+    if (!tagName) {
+        return false;
+    }
+
+    const interactiveTags = ['INPUT', 'TEXTAREA', 'SELECT'];
+    return interactiveTags.includes(tagName);
 }
 
 function getShapesBoundingBox() {
@@ -627,31 +780,26 @@ function getShapesBoundingBox() {
 function fitShapesToCanvas() {
     const bounds = getShapesBoundingBox();
     if (!bounds) {
+        resetView();
         return;
     }
 
-    const width = bounds.maxX - bounds.minX;
-    const height = bounds.maxY - bounds.minY;
-    const padding = 5;
+    const width = Math.max(bounds.maxX - bounds.minX, 1);
+    const height = Math.max(bounds.maxY - bounds.minY, 1);
+    const padding = 20;
     const availableWidth = Math.max(canvas.width - padding * 2, 1);
     const availableHeight = Math.max(canvas.height - padding * 2, 1);
 
-    const scaleX = width === 0 ? Infinity : availableWidth / width;
-    const scaleY = height === 0 ? Infinity : availableHeight / height;
+    const scaleX = availableWidth / width;
+    const scaleY = availableHeight / height;
     const scale = Math.min(scaleX, scaleY);
-    const finalScale = !isFinite(scale) || scale <= 0 ? 1 : scale;
+    viewScale = clamp(scale, MIN_ZOOM, MAX_ZOOM);
 
-    const contentWidth = width * finalScale;
-    const contentHeight = height * finalScale;
-    const offsetX = (canvas.width - contentWidth) / 2;
-    const offsetY = (canvas.height - contentHeight) / 2;
-
-    shapes.forEach(shape => {
-        shape.x = offsetX + (shape.x - bounds.minX) * finalScale;
-        shape.y = offsetY + (shape.y - bounds.minY) * finalScale;
-        shape.width *= finalScale;
-        shape.height *= finalScale;
-    });
+    const contentWidth = width * viewScale;
+    const contentHeight = height * viewScale;
+    viewOffsetX = (canvas.width - contentWidth) / 2 - bounds.minX * viewScale;
+    viewOffsetY = (canvas.height - contentHeight) / 2 - bounds.minY * viewScale;
+    userAdjustedView = false;
 }
 
 // Toggle sidebar

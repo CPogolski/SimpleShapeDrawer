@@ -36,6 +36,7 @@ let isResizing = false;
 let resizeHandle = null;
 let dragOffsetX = 0;
 let dragOffsetY = 0;
+let resizeState = null;
 let viewScale = 1;
 let viewOffsetX = 0;
 let viewOffsetY = 0;
@@ -107,7 +108,16 @@ class Shape {
         ctx.strokeStyle = '#667eea';
         ctx.lineWidth = 2 / viewScale;
         ctx.setLineDash([5 / viewScale, 5 / viewScale]);
-        ctx.strokeRect(this.x, this.y, this.width, this.height);
+        
+        if (this.type === 'square') {
+            // For squares, use actual square dimensions for the selection box
+            const size = Math.max(Math.abs(this.width), Math.abs(this.height));
+            const drawWidth = this.width < 0 ? -size : size;
+            const drawHeight = this.height < 0 ? -size : size;
+            ctx.strokeRect(this.x, this.y, drawWidth, drawHeight);
+        } else {
+            ctx.strokeRect(this.x, this.y, this.width, this.height);
+        }
         ctx.setLineDash([]);
 
         // Draw resize handles
@@ -126,15 +136,23 @@ class Shape {
     }
 
     getResizeHandles() {
+        const bounds = getBoundsForShape(this);
+        const { left, right, top, bottom } = bounds;
+
+        // Calculate middle points
+        const centerX = (left + right) / 2;
+        const centerY = (top + bottom) / 2;
+
+        // Return handle positions based on actual corners
         return [
-            { x: this.x, y: this.y, position: 'nw' },
-            { x: this.x + this.width / 2, y: this.y, position: 'n' },
-            { x: this.x + this.width, y: this.y, position: 'ne' },
-            { x: this.x, y: this.y + this.height / 2, position: 'w' },
-            { x: this.x + this.width, y: this.y + this.height / 2, position: 'e' },
-            { x: this.x, y: this.y + this.height, position: 'sw' },
-            { x: this.x + this.width / 2, y: this.y + this.height, position: 's' },
-            { x: this.x + this.width, y: this.y + this.height, position: 'se' }
+            { x: left, y: top, position: 'nw' },
+            { x: centerX, y: top, position: 'n' },
+            { x: right, y: top, position: 'ne' },
+            { x: left, y: centerY, position: 'w' },
+            { x: right, y: centerY, position: 'e' },
+            { x: left, y: bottom, position: 'sw' },
+            { x: centerX, y: bottom, position: 's' },
+            { x: right, y: bottom, position: 'se' }
         ];
     }
 
@@ -164,6 +182,18 @@ class Shape {
             
             // Point is inside if sum of areas equals original area (with small tolerance)
             return Math.abs(areaOrig - (area1 + area2 + area3)) < 1;
+        } else if (this.type === 'square') {
+            // For squares, use the actual square dimensions
+            const size = Math.max(Math.abs(this.width), Math.abs(this.height));
+            const drawWidth = this.width < 0 ? -size : size;
+            const drawHeight = this.height < 0 ? -size : size;
+            
+            return (
+                x >= Math.min(this.x, this.x + drawWidth) &&
+                x <= Math.max(this.x, this.x + drawWidth) &&
+                y >= Math.min(this.y, this.y + drawHeight) &&
+                y <= Math.max(this.y, this.y + drawHeight)
+            );
         } else {
             return (
                 x >= Math.min(this.x, this.x + this.width) &&
@@ -408,8 +438,7 @@ canvas.addEventListener('mousedown', (e) => {
             resizeHandle = selectedShape.getResizeHandleAt(x, y, tolerance);
             if (resizeHandle) {
                 isResizing = true;
-                startX = x;
-                startY = y;
+                resizeState = createResizeState(selectedShape);
                 return;
             }
         }
@@ -490,64 +519,10 @@ canvas.addEventListener('mousemove', (e) => {
         selectedShape.x = newX;
         selectedShape.y = newY;
         redraw();
-    } else if (isResizing && selectedShape && resizeHandle) {
-        const dx = x - startX;
-        const dy = y - startY;
-
-        const originalX = selectedShape.x;
-        const originalY = selectedShape.y;
-        const originalWidth = selectedShape.width;
-        const originalHeight = selectedShape.height;
-
-        switch (resizeHandle) {
-            case 'nw':
-                selectedShape.x = snapToGrid(selectedShape.x + dx);
-                selectedShape.y = snapToGrid(selectedShape.y + dy);
-                selectedShape.width = originalX + originalWidth - selectedShape.x;
-                selectedShape.height = originalY + originalHeight - selectedShape.y;
-                break;
-            case 'n':
-                selectedShape.y = snapToGrid(selectedShape.y + dy);
-                selectedShape.height = originalY + originalHeight - selectedShape.y;
-                break;
-            case 'ne':
-                selectedShape.y = snapToGrid(selectedShape.y + dy);
-                selectedShape.width = snapToGrid(originalWidth + dx);
-                selectedShape.height = originalY + originalHeight - selectedShape.y;
-                break;
-            case 'w':
-                selectedShape.x = snapToGrid(selectedShape.x + dx);
-                selectedShape.width = originalX + originalWidth - selectedShape.x;
-                break;
-            case 'e':
-                selectedShape.width = snapToGrid(originalWidth + dx);
-                break;
-            case 'sw':
-                selectedShape.x = snapToGrid(selectedShape.x + dx);
-                selectedShape.width = originalX + originalWidth - selectedShape.x;
-                selectedShape.height = snapToGrid(originalHeight + dy);
-                break;
-            case 's':
-                selectedShape.height = snapToGrid(originalHeight + dy);
-                break;
-            case 'se':
-                selectedShape.width = snapToGrid(originalWidth + dx);
-                selectedShape.height = snapToGrid(originalHeight + dy);
-                break;
-        }
-
-        // Prevent negative or too small dimensions
-        if (Math.abs(selectedShape.width) < GRID_SIZE) {
-            selectedShape.x = originalX;
-            selectedShape.width = originalWidth;
-        }
-        if (Math.abs(selectedShape.height) < GRID_SIZE) {
-            selectedShape.y = originalY;
-            selectedShape.height = originalHeight;
-        }
-
-        startX = x;
-        startY = y;
+    } else if (isResizing && selectedShape && resizeHandle && resizeState) {
+        const snappedMouseX = snapToGrid(x);
+        const snappedMouseY = snapToGrid(y);
+        resizeShapeUsingHandle(selectedShape, resizeHandle, snappedMouseX, snappedMouseY, resizeState);
         redraw();
     } else if (currentTool === 'select' && selectedShape && !currentColor && !isSpacePressed) {
         // Only show resize cursors when no color is selected
@@ -619,6 +594,7 @@ canvas.addEventListener('mouseup', (e) => {
     } else if (isResizing) {
         isResizing = false;
         resizeHandle = null;
+        resizeState = null;
         updateInfo('Form skaliert.');
     }
 });
@@ -634,6 +610,7 @@ canvas.addEventListener('mouseleave', () => {
     if (isResizing) {
         isResizing = false;
         resizeHandle = null;
+        resizeState = null;
     }
     if (isPanning) {
         isPanning = false;
@@ -691,6 +668,138 @@ function getCursorForHandle(handle) {
         'se': 'se-resize'
     };
     return cursors[handle] || 'default';
+}
+
+function createResizeState(shape) {
+    return {
+        bounds: getBoundsForShape(shape)
+    };
+}
+
+function getBoundsForShape(shape) {
+    if (!shape) {
+        return { left: 0, right: 0, top: 0, bottom: 0 };
+    }
+
+    if(shape.type === 'square') {
+        const size = Math.max(Math.abs(shape.width), Math.abs(shape.height));
+        const drawWidth = shape.width < 0 ? -size : size;
+        const drawHeight = shape.height < 0 ? -size : size;
+        const left = Math.min(shape.x, shape.x + drawWidth);
+        const right = Math.max(shape.x, shape.x + drawWidth);
+        const top = Math.min(shape.y, shape.y + drawHeight);
+        const bottom = Math.max(shape.y, shape.y + drawHeight);
+        return { left, right, top, bottom };
+    }
+
+    const left = Math.min(shape.x, shape.x + shape.width);
+    const right = Math.max(shape.x, shape.x + shape.width);
+    const top = Math.min(shape.y, shape.y + shape.height);
+    const bottom = Math.max(shape.y, shape.y + shape.height);
+    return { left, right, top, bottom };
+}
+
+function resizeShapeUsingHandle(shape, handle, mouseX, mouseY, state) {
+    if (!shape || !handle || !state || !state.bounds) {
+        return;
+    }
+
+    const { left, right, top, bottom } = state.bounds;
+
+    if (shape.type === 'square') {
+        // For squares, determine which corner to keep fixed
+        let fixedX, fixedY;
+        
+        // Determine the fixed corner based on the handle being dragged
+        if (handle === 'nw') {
+            fixedX = right;
+            fixedY = bottom;
+        } else if (handle === 'ne') {
+            fixedX = left;
+            fixedY = bottom;
+        } else if (handle === 'sw') {
+            fixedX = right;
+            fixedY = top;
+        } else if (handle === 'se') {
+            fixedX = left;
+            fixedY = top;
+        } else if (handle === 'n') {
+            fixedX = left;
+            fixedY = bottom;
+        } else if (handle === 's') {
+            fixedX = left;
+            fixedY = top;
+        } else if (handle === 'w') {
+            fixedX = right;
+            fixedY = top;
+        } else if (handle === 'e') {
+            fixedX = left;
+            fixedY = top;
+        }
+
+        // Calculate the new size based on the maximum delta from mouse to fixed point
+        const dx = mouseX - fixedX;
+        const dy = mouseY - fixedY;
+        const maxDelta = Math.max(Math.abs(dx), Math.abs(dy));
+        
+        // Maintain the fixed corner and adjust size and position accordingly
+        if (handle.includes('w')) {
+            shape.x = fixedX - maxDelta;
+            shape.width = maxDelta;
+        } else if (handle.includes('e')) {
+            shape.x = fixedX;
+            shape.width = maxDelta;
+        }
+        
+        if (handle.includes('n')) {
+            shape.y = fixedY - maxDelta;
+            shape.height = maxDelta;
+        } else if (handle.includes('s')) {
+            shape.y = fixedY;
+            shape.height = maxDelta;
+        }
+        
+        // For edge handles, maintain square shape
+        if (handle === 'n' || handle === 's') {
+            shape.width = maxDelta;
+        } else if (handle === 'w' || handle === 'e') {
+            shape.height = maxDelta;
+        }
+        
+    } else {
+        // Regular shape resizing logic
+        let newX = shape.x;
+        let newWidth = shape.width;
+        let newY = shape.y;
+        let newHeight = shape.height;
+
+        if (handle.includes('e')) {
+            newX = left;
+            newWidth = mouseX - left;
+        } else if (handle.includes('w')) {
+            newX = mouseX;
+            newWidth = right - mouseX;
+        } else {
+            newX = left;
+            newWidth = right - left;
+        }
+
+        if (handle.includes('s')) {
+            newY = top;
+            newHeight = mouseY - top;
+        } else if (handle.includes('n')) {
+            newY = mouseY;
+            newHeight = bottom - mouseY;
+        } else {
+            newY = top;
+            newHeight = bottom - top;
+        }
+
+        shape.x = newX;
+        shape.y = newY;
+        shape.width = newWidth;
+        shape.height = newHeight;
+    }
 }
 
 function redraw() {

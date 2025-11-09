@@ -1,0 +1,8 @@
+<svg width="32" height="32" xmlns="http://www.w3.org/2000/svg">
+    <g>
+        <rect id="Rectangle" height="14" width="15" y="3" x="3" stroke="#000" fill="#00ff21" />
+        <ellipse ry="8" rx="8" id="Circle" cy="18" cx="22" stroke="#000" fill="#ff0f0f" />
+        <path id="triangle" d="m3.76843,28.40154l8.96064,-17.76545l8.96064,17.76545l-17.92128,0z"
+            stroke="#000" fill="#0000ff" />
+    </g>
+</svg>
